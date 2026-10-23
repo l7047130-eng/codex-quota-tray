@@ -184,11 +184,20 @@ Could not load PyInstaller's embedded PKG archive from the executable (...)
 
 然后卡住；无控制台版本看起来就是「双击没反应」，而且一行日志都不写。
 
-`build_exe.py` 末尾已自动处理。手动修复：
+**首选做法是让标签从目录继承**（对 `dist` 执行一次即可，之后新生成的 exe 天生就是 Medium）：
+
+```bat
+icacls "dist" /setintegritylevel (OI)(CI)Medium
+```
+
+`build_exe.py` 会先读产物当前的完整性级别，只有确实是 Low 才去改；手动兜底：
 
 ```bat
 icacls "dist\CodexQuotaTray.exe" /setintegritylevel Medium
 ```
+
+注意：对**刚生成、可能仍被占用**的 exe 事后改标签会报「拒绝访问」，脚本会因此判定
+构建失败并删掉产物。真的遇到时先做上面的目录继承，再重新打包即可。
 
 同一个原因也会让项目内的 `.venv\Scripts\python.exe` 报
 `failed to locate pyvenv.cfg`，修复方式相同：

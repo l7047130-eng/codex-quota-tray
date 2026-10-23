@@ -23,7 +23,66 @@ WORK = os.path.join(ROOT, "build", "pyi")
 NAME = "CodexQuotaTray"
 
 
-def reset_integrity_level(path: str) -> bool:
+INTEGRITY_NAMES = {0x0000: "Untrusted", 0x1000: "Low", 0x2000: "Medium",
+                   0x3000: "High", 0x4000: "System"}
+
+
+def file_integrity_level(path: str) -> str | None:
+    """读取文件的强制完整性级别（不依赖 icacls 的本地化输出）。
+
+    返回 "Low" / "Medium" / "High" 等；文件没有显式标签时返回 None
+    （等同于 Medium）。用 GetNamedSecurityInfoW 取 SACL，再从
+    SYSTEM_MANDATORY_LABEL_ACE 里读 SID 的第一个子权威。
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    advance = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    SE_FILE_OBJECT = 1
+    LABEL_SECURITY_INFORMATION = 0x00000010
+    DACL_SECURITY_INFORMATION = 0x00000004
+    SYSTEM_MANDATORY_LABEL_ACE_TYPE = 0x11
+
+    sacl = ctypes.c_void_p()
+    sd = ctypes.c_void_p()
+    advance.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p)]
+    rc = advance.GetNamedSecurityInfoW(
+        path, SE_FILE_OBJECT, LABEL_SECURITY_INFORMATION,
+        None, None, None, ctypes.byref(sacl), ctypes.byref(sd))
+    if rc != 0 or not sacl:
+        return None
+    try:
+        # ACL: AclRevision(1) Sbz1(1) AclSize(2) AceCount(2) Sbz2(2)，ACE 从偏移 8 开始
+        header = ctypes.string_at(sacl, 8)
+        ace_count = int.from_bytes(header[4:6], "little")
+        offset = 8
+        for _ in range(ace_count):
+            ace = ctypes.string_at(sacl.value + offset, 4)
+            ace_type = ace[0]
+            ace_size = int.from_bytes(ace[2:4], "little")
+            if ace_type == SYSTEM_MANDATORY_LABEL_ACE_TYPE and ace_size >= 12:
+                # ACE_HEADER(4) + Mask(4) + SidStart(4 起)
+                sid = ctypes.c_void_p(sacl.value + offset + 8)
+                advance.GetSidSubAuthorityCount.argtypes = [ctypes.c_void_p]
+                advance.GetSidSubAuthorityCount.restype = ctypes.POINTER(ctypes.c_ubyte)
+                count = advance.GetSidSubAuthorityCount(sid)[0]
+                advance.GetSidSubAuthority.restype = ctypes.POINTER(wintypes.DWORD)
+                advance.GetSidSubAuthority.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+                rid = advance.GetSidSubAuthority(sid, count - 1)[0]
+                return INTEGRITY_NAMES.get(rid & 0xF000, f"0x{rid:X}")
+            offset += ace_size
+        return None
+    finally:
+        kernel32.LocalFree(sd)
+
+
+def reset_integrity_level(path: str) -> tuple[bool, str]:
     """把产物 exe 的完整性级别显式设为「中」。
 
     背景：DSH 等工作区沙箱会给项目目录打上「低完整性」强制标签，目录里的文件
@@ -41,9 +100,12 @@ def reset_integrity_level(path: str) -> bool:
             ["icacls", path, "/setintegritylevel", "Medium"],
             capture_output=True, text=True, errors="replace",
         )
-    except OSError:
-        return False
-    return result.returncode == 0
+    except OSError as exc:
+        return False, f"无法执行 icacls：{exc}"
+    if result.returncode == 0:
+        return True, ""
+    detail = ((result.stderr or "") + (result.stdout or "")).strip()
+    return False, detail.replace("\n", " ")[:300] or f"icacls 退出码 {result.returncode}"
 
 
 def sync_docs() -> None:
@@ -116,10 +178,17 @@ def main() -> int:
 
     # 关键一步：工作区沙箱可能给目录打了低完整性标签，会让打出来的 exe 起不来。
     # 这一步失败就不能交付，所以直接判构建失败，并把坏产物删掉防止被误发。
-    if not reset_integrity_level(exe):
+    level = file_integrity_level(exe)
+    if level in (None, "Medium", "High", "System"):
+        integrity_ok, integrity_detail = True, ""
+        print(f"exe 完整性级别 = {level or '未设标签（等同 Medium）'}，无需重置")
+    else:
+        integrity_ok, integrity_detail = reset_integrity_level(exe)
+    if not integrity_ok:
         print("\n构建失败：未能把 exe 的完整性级别重置为「中」。")
         print("这种 exe 在带「低完整性」标签的目录里会表现为「双击没反应、日志一行不写」，")
         print("不能作为交付物。已删除这个产物，请修复后重新打包。")
+        print(f"icacls 报错：{integrity_detail}")
         print(f'手动验证命令： icacls "{exe}" /setintegritylevel Medium')
         try:
             os.remove(exe)
