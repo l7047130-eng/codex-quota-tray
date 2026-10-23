@@ -206,6 +206,21 @@ icacls "dist\CodexQuotaTray.exe" /setintegritylevel Medium
 icacls ".venv\Scripts\python.exe" /setintegritylevel Medium
 ```
 
+## 上传 / 更新 GitHub
+
+仓库：<https://github.com/l7047130-eng/codex-quota-tray>（私有）
+
+本机代理只放行 `api.github.com`，`github.com` 的 HTTPS 出口被挡（`CONNECT tunnel
+failed, response 502`），所以 `git push` 不通。更新用脚本走 REST API：
+
+```bat
+.venv\Scripts\python.exe tools\push_to_github.py --repo codex-quota-tray --use-stored-credential
+```
+
+它会向系统 git 凭据管理器要 token（也可以设 `GH_TOKEN` 环境变量），把本地提交
+逐条重建成 blob → tree → commit → ref 再强推 `main`。作者、时间、提交信息、
+甚至 commit SHA 都与本地一致，所以本地和远程是同一段历史，不会被改写成两条。
+
 ## 命令行
 
 | 参数 | 作用 |
