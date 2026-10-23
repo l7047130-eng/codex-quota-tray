@@ -32,7 +32,7 @@ codex额度监视/
 │   ├── iconart.py           托盘图标绘制（备用方式使用）
 │   ├── w32.py               Win32 薄封装（纯 ctypes，无第三方依赖）
 │   └── applog.py            日志（%LOCALAPPDATA%\CodexQuotaTray\tray.log）
-├── dist/CodexQuotaTray.exe  可运行版本（单文件，无控制台，约 17.3 MB）
+├── dist/CodexQuotaTray.exe  可运行版本（单文件，无控制台，约 17.3 MB，构建产物不入库）
 ├── build/build_exe.py       打包脚本（末尾会把 exe 完整性级别重置为「中」）
 ├── tools/make_shortcut.py   生成桌面快捷方式「Codex 额度」，并删除旧的「Codex + 额度」
 ├── assets/app.ico           程序与快捷方式图标（六边形 + 液位，9 个尺寸）
@@ -159,7 +159,17 @@ Codex 界面**）。退出时用 psutil 杀进程树，并把这棵子树放进 
 
 1. 用 `sys.executable` 同目录的 `pyinstaller.exe` 打包；
 2. **把产物 exe 的完整性级别重置为「中」**（见下节，这一步不能省）；
-3. 把 `README.md`、`使用说明.md` 拷进 `dist\`。
+3. 把 `README.md`、`使用说明.md`、`docs\测试报告.md` 与 `docs\images\` 下的截图
+   同步进 `dist\`（报告里的图片路径会自动改成 `docs/images/`，让 dist 目录能整体拷走）。
+
+只改了文档、不想重新打包时，用这条命令单独同步：
+
+```bat
+.venv\Scripts\python.exe build\build_exe.py --docs-only
+```
+
+`dist\` 整体是生成产物，已在 `.gitignore` 里排除：exe 每次 17 MB，纳入版本库会让
+`.git` 迅速膨胀，而它完全可以用上面一条命令重建。
 
 ### ⚠ 打包后必须重置完整性级别
 
