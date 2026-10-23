@@ -117,17 +117,22 @@ def parse_commit(sha: str) -> dict:
 
 
 def commit_files(sha: str) -> list[tuple[str, str, str]]:
-    """返回 [(mode, blob_sha, path)]。"""
-    out = git("ls-tree", "-r", sha)
+    """返回 [(mode, blob_sha, path)]。
+
+    必须用 `-z`：不加的话 git 会给含非 ASCII 的路径加引号并做八进制转义
+    （例如 "docs/\344\272\244..."），push 上去会被当成一个名字里带引号的目录，
+    中文文件名直接丢失。
+    """
+    out = git("ls-tree", "-r", "-z", sha, binary=True)
     files = []
-    for line in out.splitlines():
-        if not line.strip():
+    for entry in out.split(b"\x00"):
+        if not entry:
             continue
-        meta, _, path = line.partition("\t")
-        mode, kind, blob = meta.split()
+        meta, _, raw_path = entry.partition(b"\t")
+        mode, kind, blob = meta.decode("ascii").split()
         if kind != "blob":
             continue
-        files.append((mode, blob, path))
+        files.append((mode, blob, raw_path.decode("utf-8")))
     return files
 
 
