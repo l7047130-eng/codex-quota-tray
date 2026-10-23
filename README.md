@@ -208,7 +208,7 @@ icacls ".venv\Scripts\python.exe" /setintegritylevel Medium
 
 ## 上传 / 更新 GitHub
 
-仓库：<https://github.com/l7047130-eng/codex-quota-tray>（私有）
+仓库：<https://github.com/l7047130-eng/codex-quota-tray>（公开）
 
 本机代理只放行 `api.github.com`，`github.com` 的 HTTPS 出口被挡（`CONNECT tunnel
 failed, response 502`），所以 `git push` 不通。更新用脚本走 REST API：
