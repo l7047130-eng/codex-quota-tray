@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 虚拟环境（按 README 自行创建）
+.venv/
+.venv*/
+
+# PyInstaller 中间产物
+build/pyi/
+build/dbg/
+build/dbgwork/
+*.spec
+
+# 交付目录：exe 与文档副本都是 build_exe.py 生成的产物，一条命令可重建。
+# exe 每次 17MB，纳入版本库会让 .git 快速膨胀，所以整体忽略。
+# 需要发版时跑： python build/build_exe.py
+/dist/
+
+# 本地工作记录与临时稿
+.workbuddy/
+_probe/
+*.log
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
