@@ -22,6 +22,12 @@ build/dbgwork/
 _probe/
 *.log
 
+# 外部脚本：本目录里另一个任务（windows-mcp 桌面自动化）的产物，
+# 与本项目无关，不纳入仓库。详见 .workbuddy/memory/2026-10-23.md
+tools/wmcp.py
+tools/wmcp_flow.py
+tools/_shot_*.png
+
 # 编辑器与系统文件
 .vscode/
 .idea/
